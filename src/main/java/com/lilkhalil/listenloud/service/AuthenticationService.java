@@ -37,7 +37,7 @@ public class AuthenticationService {
         var user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .image(request.getImage() == null ? "https://thumbs.dfs.ivi.ru/storage15/contents/5/a/98f60d6bb9343afd1170fc33dd3296.jpg/1920x1080/" : request.getImage())
+                .image(request.getImage() == null ? "http://example/image.jpg" : request.getImage())
                 .role(Role.USER)
                 .build();
         var savedUser = repository.save(user);

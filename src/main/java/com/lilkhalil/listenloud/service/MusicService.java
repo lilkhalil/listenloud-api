@@ -3,7 +3,6 @@ package com.lilkhalil.listenloud.service;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -24,22 +23,46 @@ public class MusicService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
 
-    public ResponseEntity<List<Music>> getAll() {
-        return ResponseEntity.ok(musicRepository.findAll());
+    public List<Music> getAll() {
+        return musicRepository.findAll();
     }
 
-    public ResponseEntity<Music> add(
+    public Music getOne(Long id) {
+        return musicRepository.findById(id).orElse(null);
+    }
+
+    public Music add(
         @RequestBody MusicRequest musicRequest,
         HttpServletRequest request
     ) {
         var music = Music.builder()
             .name(musicRequest.getName())
+            .description(musicRequest.getDescription())
             .image(getImage(musicRequest.getImage()))
             .audio(getAudio(musicRequest.getAudio()))
             .author(getUser(request))
             .build();
-        musicRepository.save(music);
-        return ResponseEntity.ok(music);
+        return musicRepository.save(music);
+    }
+
+    public Music edit(
+        Long id,
+        @RequestBody MusicRequest musicRequest,
+        HttpServletRequest request
+    ) {
+        Music music = musicRepository.getReferenceById(id);
+        music.setName(musicRequest.getName() == null ? music.getName() : musicRequest.getName());
+        music.setDescription(musicRequest.getDescription() == null ? music.getDescription() : musicRequest.getDescription());
+        music.setImage(musicRequest.getImage() == null ? music.getImage() : musicRequest.getImage());
+        music.setAudio(musicRequest.getAudio() == null ? music.getAudio() : musicRequest.getAudio());
+        return musicRepository.save(music);
+    }
+
+    public void delete(
+        Long id
+    ) {
+        musicRepository.deleteById(id);
+        return;
     }
     
     private String getImage(String request) {
@@ -57,8 +80,8 @@ public class MusicService {
 
     private User getUser(HttpServletRequest request) {
         final String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-        final String jwt = jwtService.extractUsername(authHeader.substring(7));
-        return userRepository.findByUsername(jwtService.extractUsername(jwt)).orElse(null);
+        final String username = jwtService.extractUsername(authHeader.substring(7));
+        return userRepository.findByUsername(username).orElse(null);
     }
 
 }
