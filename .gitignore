@@ -1,5 +1,11 @@
 HELP.md
+<<<<<<< HEAD
 target
+=======
+target/*
+!target/site/
+!target/generated-docs
+>>>>>>> 30dddf5ef128f4c30bca2c068f39e77b1494c330
 ### /target/classes
 ### /target/generated-snippets
 ### /target/generated/sources
