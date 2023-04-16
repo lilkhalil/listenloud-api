@@ -8,6 +8,12 @@ import org.springframework.data.jpa.repository.Query;
 
 import com.lilkhalil.listenloud.model.Token;
 
+/**
+ * Указывает, что аннотированный класс представляет собой «репозиторий»,
+ * первоначально определенный в Domain-Driven Design (Evans, 2003) как «механизм
+ * для инкапсуляции поведения хранения, извлечения и поиска, который эмулирует
+ * набор объектов». Средство взаимодействия с таблицей токенов.
+ */
 public interface TokenRepository extends JpaRepository<Token, Long> {
     @Query(value = """
             select t from Token t inner join User u on t.user.id = u.id\s
@@ -15,5 +21,10 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
             """)
     List<Token> findAllValidTokenByUser(Long id);
 
+    /**
+     * Имена производных методов состоят из двух основных частей, разделенных первым ключевым словом By.
+     * @param token JWT-токен
+     * @return экземпляр класса {@link com.lilkhalil.listenloud.model.Token} или <code>null</code> в случае отсутствия в базе данных.
+     */
     Optional<Token> findByToken(String token);
 }

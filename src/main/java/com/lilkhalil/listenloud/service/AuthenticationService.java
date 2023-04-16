@@ -23,16 +23,52 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Сервис аутентификации. Указывает, что аннотированный класс — это «Сервис», первоначально
+ * определенный в Domain-Driven Design (Evans, 2003) как «операция, предлагаемая
+ * в качестве автономного интерфейса в модели без инкапсулированного состояния».
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthenticationService {
 
+    /**
+     * Экземпляр класса {@link com.lilkhalil.listenloud.repository.UserRepository}
+     */
     private final UserRepository repository;
+
+    /**
+     * Экземпляр класса {@link com.lilkhalil.listenloud.repository.TokenRepository}
+     */
     private final TokenRepository tokenRepository;
+
+    /**
+     * Экземпляр класса
+     * {@link org.springframework.security.crypto.password.PasswordEncoder}
+     */
     private final PasswordEncoder passwordEncoder;
+
+    /**
+     * Экземпляр класса {@link com.lilkhalil.listenloud.service.JwtService}
+     */
     private final JwtService jwtService;
+
+    /**
+     * Экземпляр класса
+     * {@link org.springframework.security.authentication.AuthenticationManager}
+     */
     private final AuthenticationManager authenticationManager;
 
+    /**
+     * Метод регистрации пользователя
+     * 
+     * @param request тело запроса
+     *                {@link com.lilkhalil.listenloud.model.RegistrationRequest} на
+     *                регистрацию пользователя
+     * @return тело ответа
+     *         {@link com.lilkhalil.listenloud.model.AuthenticationResponse} на
+     *         регистрацию пользователя
+     */
     public AuthenticationResponse register(RegistrationRequest request) {
         var user = User.builder()
                 .username(request.getUsername())
@@ -50,6 +86,16 @@ public class AuthenticationService {
                 .build();
     }
 
+    /**
+     * Метод регистрации пользователя
+     * 
+     * @param request тело запроса
+     *                {@link com.lilkhalil.listenloud.model.AuthenticationRequest}
+     *                на аутентфикацию пользователя
+     * @return тело ответа
+     *         {@link com.lilkhalil.listenloud.model.AuthenticationResponse} на
+     *         авторизацию пользователя
+     */
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -67,6 +113,12 @@ public class AuthenticationService {
                 .build();
     }
 
+    /**
+     * Вспомогательный метод для сохранения токена пользователя
+     * 
+     * @param user     сущность пользователя в базе данных
+     * @param jwtToken сущность токена в базе данных
+     */
     private void saveUserToken(User user, String jwtToken) {
         var token = Token.builder()
                 .user(user)
@@ -78,6 +130,11 @@ public class AuthenticationService {
         tokenRepository.save(token);
     }
 
+    /**
+     * Вспомогательный метод по удалению всех токенов пользователя
+     * 
+     * @param user сущность пользователя, чьи токены удаляются
+     */
     private void revokeAllUserTokens(User user) {
         var validUserTokens = tokenRepository.findAllValidTokenByUser(user.getId());
         if (validUserTokens.isEmpty())
@@ -89,6 +146,13 @@ public class AuthenticationService {
         tokenRepository.saveAll(validUserTokens);
     }
 
+    /**
+     * Метод обновления токена доступа
+     * 
+     * @param request  HTTP запрос
+     * @param response HTTP ответ
+     * @throws IOException
+     */
     public void refreshToken(
             HttpServletRequest request,
             HttpServletResponse response) throws IOException {
