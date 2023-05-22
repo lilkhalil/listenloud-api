@@ -7,11 +7,12 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lilkhalil.listenloud.model.AuthenticationRequest;
+import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
+import com.lilkhalil.listenloud.exception.UserAlreadyExistsException;
 import com.lilkhalil.listenloud.model.AuthenticationResponse;
-import com.lilkhalil.listenloud.model.RegistrationRequest;
 import com.lilkhalil.listenloud.model.Role;
 import com.lilkhalil.listenloud.model.Token;
 import com.lilkhalil.listenloud.model.TokenType;
@@ -53,6 +54,8 @@ public class AuthenticationService {
      */
     private final JwtService jwtService;
 
+    private final StorageService storageService;
+
     /**
      * Экземпляр класса
      * {@link org.springframework.security.authentication.AuthenticationManager}
@@ -69,13 +72,29 @@ public class AuthenticationService {
      *         {@link com.lilkhalil.listenloud.model.AuthenticationResponse} на
      *         регистрацию пользователя
      */
-    public AuthenticationResponse register(RegistrationRequest request) {
-        var user = User.builder()
-                .username(request.getUsername())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .image(request.getImage() == null ? "http://example/image.jpg" : request.getImage())
+    public AuthenticationResponse register(
+        String username,
+        String password,
+        MultipartFile image
+    ) throws NotValidContentTypeException, IOException
+    {
+
+        if (repository.findByUsername(username).orElse(null) != null)
+            throw new UserAlreadyExistsException("User already exists! Please choose a different username!");
+
+        User user = User.builder()
+                .username(username)
+                .password(passwordEncoder.encode(password))
                 .role(Role.USER)
                 .build();
+
+        if (image == null)
+            user.setImage("https://listenloudstorage.storage.yandexcloud.net/NOT_FOUND.jpg");
+        else {
+            storageService.isValidMediaType(image);
+            user.setImage(storageService.upload(image));
+        }
+        
         var savedUser = repository.save(user);
         var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
@@ -96,12 +115,10 @@ public class AuthenticationService {
      *         {@link com.lilkhalil.listenloud.model.AuthenticationResponse} на
      *         авторизацию пользователя
      */
-    public AuthenticationResponse authenticate(AuthenticationRequest request) {
+    public AuthenticationResponse authenticate(String username, String password) {
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getUsername(),
-                        request.getPassword()));
-        var user = repository.findByUsername(request.getUsername())
+                new UsernamePasswordAuthenticationToken(username, password));
+        User user = repository.findByUsername(username)
                 .orElseThrow();
         var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);

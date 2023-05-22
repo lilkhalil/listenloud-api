@@ -3,17 +3,19 @@ package com.lilkhalil.listenloud.controllers;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
+import java.io.IOException;
+
 import org.springframework.hateoas.RepresentationModel;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
-import com.lilkhalil.listenloud.model.AuthenticationRequest;
-import com.lilkhalil.listenloud.model.AuthenticationResponse;
-import com.lilkhalil.listenloud.model.RegistrationRequest;
+import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
 import com.lilkhalil.listenloud.service.AuthenticationService;
 import com.lilkhalil.listenloud.service.LogoutService;
 
@@ -48,34 +50,35 @@ public class AuthenticationController {
     @GetMapping
     public RepresentationModel<?> authentication() {
         RepresentationModel<?> authentication = new RepresentationModel<>();
-        authentication.add(linkTo(methodOn(AuthenticationController.class).register(null)).withRel("Регистрация"));
+        authentication.add(linkTo(methodOn(AuthenticationController.class).register(null, null, null)).withRel("Регистрация"));
         authentication
-                .add(linkTo(methodOn(AuthenticationController.class).authenticate(null)).withRel("Аутентификация"));
+                .add(linkTo(methodOn(AuthenticationController.class).authenticate(null, null)).withRel("Аутентификация"));
         return authentication;
     }
 
-    /**
-     * Метод по обработке запроса на регистрацию
-     * 
-     * @param registrationRequest запрос пользователя на регистрацию
-     * @return JSON-представление тела ответа
-     */
     @PostMapping("/register")
-    public ResponseEntity<AuthenticationResponse> register(
-            @RequestBody RegistrationRequest registrationRequest) {
-        return ResponseEntity.ok(authenticationService.register(registrationRequest));
+    public ResponseEntity<?> register(
+        @RequestParam String username,
+        @RequestParam String password,
+        @RequestParam(required = false) MultipartFile image
+    ) 
+    {
+        try {
+            return ResponseEntity.ok(authenticationService.register(username, password, image));
+        } catch (IOException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_GATEWAY);
+        } catch (NotValidContentTypeException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        }
     }
 
-    /**
-     * Метод по обработке запроса на аутентификацию
-     * 
-     * @param authenticationRequest Запрос пользователя на аутентификацию
-     * @return JSON-представление тела ответа
-     */
     @PostMapping("/authenticate")
-    public ResponseEntity<AuthenticationResponse> authenticate(
-            @RequestBody AuthenticationRequest authenticationRequest) {
-        return ResponseEntity.ok(authenticationService.authenticate(authenticationRequest));
+    public ResponseEntity<?> authenticate(
+        @RequestParam String username,
+        @RequestParam String password
+    )
+    {
+        return ResponseEntity.ok(authenticationService.authenticate(username, password));
     }
 
     /**

@@ -1,18 +1,36 @@
 package com.lilkhalil.listenloud.service;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Stream;
 
-import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.lilkhalil.listenloud.dto.MusicDTO;
+import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
+import com.lilkhalil.listenloud.mapper.MusicMapper;
 import com.lilkhalil.listenloud.model.Music;
-import com.lilkhalil.listenloud.model.MusicRequest;
+import com.lilkhalil.listenloud.model.MusicTag;
+import com.lilkhalil.listenloud.model.MusicTagKey;
+import com.lilkhalil.listenloud.model.Save;
+import com.lilkhalil.listenloud.model.SaveKey;
+import com.lilkhalil.listenloud.model.Tag;
+import com.lilkhalil.listenloud.model.TagType;
 import com.lilkhalil.listenloud.model.User;
+import com.lilkhalil.listenloud.model.Like;
+import com.lilkhalil.listenloud.model.LikeKey;
 import com.lilkhalil.listenloud.repository.MusicRepository;
-import com.lilkhalil.listenloud.repository.UserRepository;
+import com.lilkhalil.listenloud.repository.MusicTagRepository;
+import com.lilkhalil.listenloud.repository.SaveRepository;
+import com.lilkhalil.listenloud.repository.SubscriptionRepository;
+import com.lilkhalil.listenloud.repository.TagRepository;
+import com.lilkhalil.listenloud.repository.LikeRepository;
+import com.lilkhalil.listenloud.repository.UserTagRepository;
 
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -29,24 +47,86 @@ public class MusicService {
      */
     private final MusicRepository musicRepository;
 
-    /**
-     * Экземпляр класса {@link com.lilkhalil.listenloud.repository.UserRepository}
-     */
-    private final UserRepository userRepository;
+    private final LikeRepository likeRepository;
 
-    /**
-     * Экземпляр класса {@link com.lilkhalil.listenloud.repository.TokenRepository}
-     */
-    private final JwtService jwtService;
+    private final MusicTagRepository musicTagRepository;
 
+    private final UserTagRepository userTagRepository;
+
+    private final SubscriptionRepository subscriptionRepository;
+
+    private final TagRepository tagRepository;
+
+    private final SaveRepository saveRepository;
+
+    /** 
+     * Экземпляр класса {@link com.lilkhalil.listenloud.service.StorageService}
+    */
+    private final StorageService storageService;
+
+    private final MusicMapper musicMapper;
     /**
      * Метод по извлечению всех доступных музыкальных композиций
      * 
      * @return список экземпляров класса
      *         {@link com.lilkhalil.listenloud.model.Music}
      */
-    public List<Music> getAll() {
-        return musicRepository.findAll();
+    public List<MusicDTO> getSongs() {
+        return musicRepository.findAll().stream().map(musicMapper::toDto).toList();
+    }
+
+    public List<MusicDTO> getSongsByTags(List<String> tagTypes) {
+
+        List<Tag> tags = tagRepository.findAllByNameIn(
+            tagTypes.stream()
+                .map(tag -> TagType.valueOf(tag)).toList()
+        );
+
+        return musicTagRepository.findMusicByTags(tags).stream()
+            .map(musicMapper::toDto)
+            .toList();
+    }
+
+    public List<MusicDTO> getRelevantSongs() {
+        
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        List<Tag> tags = userTagRepository.findByUser(user);
+
+        if (tags.isEmpty()) {
+            return Stream.concat(likeRepository.findAllOrderByLikesCount().stream(), musicRepository.findAll().stream())
+                .distinct()
+                .map(musicMapper::toDto)
+                .toList();
+        }
+
+        return musicTagRepository.findMusicByTags(tags).stream().map(musicMapper::toDto).toList();
+    }
+
+    public List<MusicDTO> getSongsBySubscriptions() {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        return subscriptionRepository.findSubscriptionsByUser(user)
+            .stream()
+            .flatMap(publisher -> musicRepository.findByAuthor(publisher).stream())
+            .map(musicMapper::toDto)
+            .toList();
+    }
+
+    public List<MusicDTO> getUploadedSongs() {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        return musicRepository.findByAuthor(user).stream().map(musicMapper::toDto).toList();
+
+    }
+
+    public List<MusicDTO> getSavedSongs() {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        return saveRepository.findByUser(user).stream().map(musicMapper::toDto).toList();
     }
 
     /**
@@ -55,51 +135,109 @@ public class MusicService {
      * @param id Уникальный идентификатор музыки
      * @return экземпляр класса {@link com.lilkhalil.listenloud.model.Music}
      */
-    public Music getOne(Long id) {
-        return musicRepository.findById(id).orElse(null);
+    public MusicDTO getSongById(Long id) throws EntityNotFoundException
+    {
+        Music music = musicRepository.findById(id).orElseThrow(() -> new EntityNotFoundException());
+        return musicMapper.toDto(music);
     }
 
-    /**
-     * Метод по добавлению музыкальной композиции в базу данных
-     * 
-     * @param musicRequest Тело запроса на добавление трека
-     * @param request      Запрос в формате HTTP 1.1 для получения заголовка
-     *                     авторизации
-     * @return экземпляр класса {@link com.lilkhalil.listenloud.model.Music}
-     */
-    public Music add(
-            @RequestBody MusicRequest musicRequest,
-            HttpServletRequest request) {
-        var music = Music.builder()
-                .name(musicRequest.getName())
-                .description(musicRequest.getDescription())
-                .image(getImage(musicRequest.getImage()))
-                .audio(getAudio(musicRequest.getAudio()))
-                .author(getUser(request))
-                .build();
-        return musicRepository.save(music);
+    public MusicDTO addSong(String name, String description, MultipartFile image, MultipartFile audio, List<String> tags) throws IOException, NotValidContentTypeException
+    {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        Music music = Music.builder()
+            .name(name)
+            .description(description)
+            .author(user)
+            .build();
+
+        storageService.isValidMediaType(audio);
+
+        if (image == null) 
+            music.setImage("https://listenloudstorage.storage.yandexcloud.net/NOT_FOUND.jpg");
+        else {
+            storageService.isValidMediaType(image);
+            music.setImage(storageService.upload(image));
+        }
+
+        music.setAudio(storageService.upload(audio));
+
+        musicRepository.save(music);
+
+        if (tags != null) {
+
+            List<MusicTag> musicTags = tags
+                .stream()
+                .map(tag -> tagRepository.findByName(TagType.valueOf(tag)).orElse(null))
+                .map(tag -> new MusicTag(new MusicTagKey(music.getId(), tag.getId()), music, tag))
+                .toList(); 
+
+            musicTagRepository.saveAll(musicTags);
+        }
+
+        return musicMapper.toDto(music);
     }
 
-    /**
-     * Метод по изменению музыкальной композиции
-     * 
-     * @param id           Уникальный идентификатор музыки
-     * @param musicRequest Тело запроса на изменение трека
-     * @param request      Запрос в формате HTTP 1.1 для получения заголовка
-     *                     авторизации
-     * @return экземпляр класса {@link com.lilkhalil.listenloud.model.Music}
-     */
-    public Music edit(
-            Long id,
-            @RequestBody MusicRequest musicRequest,
-            HttpServletRequest request) {
-        Music music = musicRepository.getReferenceById(id);
-        music.setName(musicRequest.getName() == null ? music.getName() : musicRequest.getName());
-        music.setDescription(
-                musicRequest.getDescription() == null ? music.getDescription() : musicRequest.getDescription());
-        music.setImage(musicRequest.getImage() == null ? music.getImage() : musicRequest.getImage());
-        music.setAudio(musicRequest.getAudio() == null ? music.getAudio() : musicRequest.getAudio());
-        return musicRepository.save(music);
+    public MusicDTO saveSong(Long id) {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        Music music = musicRepository.findById(id).orElse(null);
+
+        Save save = new Save(new SaveKey(user.getId(), music.getId()), user, music, LocalDateTime.now());
+
+        saveRepository.save(save);
+
+        return musicMapper.toDto(music);
+
+    }
+
+    public MusicDTO editSong(Long id, String name, String description, MultipartFile image, MultipartFile audio, List<String> tags) throws IOException, NotValidContentTypeException
+    {
+        Music music = musicRepository.findById(id).orElse(null);
+
+        music.setName(name == null ? music.getName() : name);
+        music.setDescription(description == null ? music.getDescription() : description);
+
+        if (tags != null) {
+            musicTagRepository.deleteByMusic(music);
+
+            List<MusicTag> musicTags = tags
+                .stream()
+                .map(tag -> tagRepository.findByName(TagType.valueOf(tag)).orElse(null))
+                .map(tag -> new MusicTag(new MusicTagKey(music.getId(), tag.getId()), music, tag))
+                .toList();
+
+            musicTagRepository.saveAll(musicTags);
+        }
+
+        if (image == null && audio == null) {
+            music.setImage(music.getImage());
+            music.setAudio(music.getAudio());
+        } 
+        else if (image == null && audio != null) {
+            storageService.isValidMediaType(audio);
+            storageService.delete(music.getAudio());
+            music.setImage(music.getImage());
+            music.setAudio(storageService.upload(audio));
+        } 
+        else if (image != null && audio == null) {
+            storageService.isValidMediaType(image);
+            storageService.delete(music.getImage());
+            music.setImage(storageService.upload(image));
+            music.setAudio(music.getAudio());
+        } 
+        else {
+            storageService.isValidMediaType(audio);
+            storageService.isValidMediaType(image);
+            storageService.delete(music.getAudio());
+            storageService.delete(music.getImage());
+            music.setImage(storageService.upload(image));
+            music.setAudio(storageService.upload(audio));
+        }
+
+        return musicMapper.toDto(musicRepository.save(music));
     }
 
     /**
@@ -107,44 +245,72 @@ public class MusicService {
      * 
      * @param id Уникальный идентификатор музыки
      */
-    public void delete(
-            Long id) {
+    public MusicDTO deleteSong(Long id) throws IOException
+    {
+        Music music = musicRepository.findById(id).orElse(null);
+
+        storageService.delete(music.getAudio());
+        storageService.delete(music.getImage());
+
+        likeRepository.deleteByMusic(music);
+
+        musicTagRepository.deleteByMusic(music);
+
+        saveRepository.deleteByMusic(music);
+
         musicRepository.deleteById(id);
-        return;
+
+        return musicMapper.toDto(music);
     }
 
-    /**
-     * Вспомогательный метод для определения изображения обложки
-     * @param request запрос пользователя, содержащий ссылку на изображение
-     * @return ссылка на новое или старое изображение обложки
-     */
-    private String getImage(String request) {
-        final String defaultValue = """
-                https://static.vecteezy.com/system/\s
-                resources/previews/005/337/799/original/\s
-                icon-image-not-found-free-vector.jpg""";
-        return request == null ? defaultValue : request;
+    public void deleteSongs() throws IOException {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        List<Music> music = musicRepository.findByAuthor(user);
+
+        music.forEach(song -> {
+            storageService.delete(song.getAudio());
+            storageService.delete(song.getImage());
+            likeRepository.deleteByMusic(song);
+            musicTagRepository.deleteByMusic(song);
+            saveRepository.deleteByMusic(song);
+        });
+
+        musicRepository.deleteAll(music);
+
     }
 
-    /**
-     * Вспомогательный метод для определения аудиофайла композиции
-     * @param request запрос пользователя, содержащий ссылку на аудиофайл
-     * @return ссылка на новый или старый аудиофайл композиции
-     */
-    private String getAudio(String request) {
-        final String defaultValue = "https://mp3uks.ru/mp3/files/kizaru-break-up-mp3.mp3";
-        return request == null ? defaultValue : request;
+    public MusicDTO deleteSavedSong(Long id) {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        Music music = musicRepository.findById(id).orElse(null);
+
+        saveRepository.deleteByMusicAndUser(music, user);
+
+        return musicMapper.toDto(music);
     }
 
-    /**
-     * Вспомогательный метод для определения пользователя
-     * @param request запрос пользователя, содержащий заголовок <code>Authorization</code> с токеном
-     * @return пользователь, загрузивший трек на площадку
-     */
-    private User getUser(HttpServletRequest request) {
-        final String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
-        final String username = jwtService.extractUsername(authHeader.substring(7));
-        return userRepository.findByUsername(username).orElse(null);
+    public void deleteSavedSongs() {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        saveRepository.deleteByUser(user);
+
+    }
+
+    public void rateMusic(Long id) {
+
+        User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        Music music = musicRepository.findById(id).orElse(null);
+
+        if (likeRepository.isLikedByUser(user, music)) 
+            likeRepository.deleteById(new LikeKey(user.getId(), music.getId()));
+        else 
+            likeRepository.save(new Like(new LikeKey(user.getId(), music.getId()), user, music));
+
     }
 
 }

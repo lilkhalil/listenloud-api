@@ -13,8 +13,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Класс-сущносто токена.
@@ -22,7 +23,8 @@ import lombok.NoArgsConstructor;
  * <a href='https://www.rfc-editor.org/rfc/rfc7519'>RFC 7519</a>
  * JWT — это лишь строка в следующем формате header.payload.signature
  */
-@Data
+@Getter
+@Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor

@@ -5,6 +5,12 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.lilkhalil.listenloud.model.Music;
+import com.lilkhalil.listenloud.model.User;
+
+import jakarta.transaction.Transactional;
+
+import java.util.List;
+
 
 /**
  * Указывает, что аннотированный класс представляет собой «репозиторий»,
@@ -19,5 +25,10 @@ public interface MusicRepository extends JpaRepository<Music, Long> {
      * @return экземпляр класса {@link com.lilkhalil.listenloud.model.Music} или <code>null</code> в случае отсутствия в базе данных.
      */
     Optional<Music> findByName(String name);
+
+    List<Music> findByAuthor(User author);
+
+    @Transactional
+    void deleteByAuthor(User user);
 
 }

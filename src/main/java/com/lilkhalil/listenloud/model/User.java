@@ -2,6 +2,7 @@ package com.lilkhalil.listenloud.model;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -11,16 +12,21 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.Singular;
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
@@ -70,6 +76,35 @@ public class User implements UserDetails {
      */
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    @OneToMany(mappedBy = "author")
+    @Singular
+    private Set<Music> addedSongs;
+
+    @OneToMany(mappedBy = "user")
+    @Singular
+    private Set<UserTag> savedTags;
+
+    @OneToMany(mappedBy = "user")
+    private Set<Save> savedSongs;
+    
+    @OneToMany(mappedBy = "user")
+    @Singular
+    private Set<Like> likedSongs;
+
+    @OneToMany(mappedBy = "subscriber")
+    @Singular
+    private Set<Subscription> subscribers;
+
+    @OneToMany(mappedBy = "publisher")
+    @Singular
+    private Set<Subscription> publishers;
+
+    @OneToMany(mappedBy = "sender", fetch = FetchType.EAGER)
+    private Set<Message> sentMessages;
+
+    @OneToMany(mappedBy = "recipient", fetch = FetchType.EAGER)
+    private Set<Message> receivedMessages;
 
     /**
      * Returns the authorities granted to the user. Cannot return <code>null</code>.

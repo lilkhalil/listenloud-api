@@ -1,14 +1,13 @@
 package com.lilkhalil.listenloud.controllers;
 
+import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
-
-import org.springframework.hateoas.RepresentationModel;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,12 +15,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.lilkhalil.listenloud.model.Music;
-import com.lilkhalil.listenloud.model.MusicRequest;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.lilkhalil.listenloud.dto.MusicDTO;
+import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
+import com.lilkhalil.listenloud.model.ExceptionResponse;
 import com.lilkhalil.listenloud.service.MusicService;
 
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -38,20 +41,36 @@ public class MusicController {
      */
     private final MusicService musicService;
 
-    /**
-     * Метод определения доступных конечных точек в виде <a href=
-     * 'https://ru.wikipedia.org/wiki/Hypertext_Application_Language'>HAL</a>
-     * 
-     * @return представление конечной точки <code>/api/v1/music</code>
-     */
-    @GetMapping
-    public RepresentationModel<?> music() {
-        RepresentationModel<?> music = new RepresentationModel<>();
-        music.add(linkTo(methodOn(MusicController.class).add(null, null)).withRel("Добавление трека"));
-        music.add(linkTo(methodOn(MusicController.class).getOne(null)).withRel("Получение трека"));
-        music.add(linkTo(methodOn(MusicController.class).edit(null, null, null)).withRel("Изменение трека"));
-        music.add(linkTo(methodOn(MusicController.class).delete(null)).withRel("Удаление трека"));
-        return music;
+    @PostMapping
+    public ResponseEntity<?> create(
+        @RequestParam String name,
+        @RequestParam(required = false) String description,
+        @RequestParam(required = false) MultipartFile image,
+        @RequestParam MultipartFile audio,
+        @RequestParam(name = "tags", required = false) List<String> tags
+    ) {
+        try {
+            MusicDTO musicDTO = musicService.addSong(name, description, image, audio, tags);
+            MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
+            headers.add("Location", "/api/v1/music/" + musicDTO.getId().toString());
+            return new ResponseEntity<>(musicDTO, headers, HttpStatus.CREATED);
+        } catch (IOException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.BAD_GATEWAY.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.BAD_GATEWAY);
+        } catch (NotValidContentTypeException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.UNSUPPORTED_MEDIA_TYPE.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        }
     }
 
     /**
@@ -60,9 +79,9 @@ public class MusicController {
      * @return JSON-представление списка экземпляров класса
      *         {@link com.lilkhalil.listenloud.model.Music}
      */
-    @GetMapping("/all")
-    public ResponseEntity<List<Music>> getAll() {
-        return new ResponseEntity<>(musicService.getAll(), HttpStatus.OK);
+    @GetMapping
+    public ResponseEntity<?> readSongs() {
+        return new ResponseEntity<>(musicService.getSongs(), HttpStatus.OK);
     }
 
     /**
@@ -74,56 +93,100 @@ public class MusicController {
      *         {@link com.lilkhalil.listenloud.model.Music}
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Music> getOne(@PathVariable Long id) {
-        return new ResponseEntity<>(musicService.getOne(id), HttpStatus.OK);
+    public ResponseEntity<?> read(@PathVariable Long id) {
+        try {
+            return new ResponseEntity<MusicDTO>(musicService.getSongById(id), HttpStatus.OK);
+        } catch (EntityNotFoundException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.NOT_FOUND.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.NOT_FOUND);
+        }
     }
 
-    /**
-     * Метод по обработке запроса на добавление музыкальной композиции
-     * 
-     * @param musicRequest запрос на добавление трека
-     * @param request      HTTP-запрос для получения заголовка
-     *                     <code>Authorization</code>
-     * @return заголовок ответа <code>Location</code> со статусом
-     *         <code>201 Created</code>
-     */
-    @PostMapping("/add")
-    public ResponseEntity<Music> add(
-            @RequestBody MusicRequest musicRequest,
-            HttpServletRequest request) {
-        HttpHeaders httpHeaders = new HttpHeaders();
-        Music music = musicService.add(musicRequest, request);
-        httpHeaders.add("Location", "/api/v1/music/" + music.getId().toString());
-        return new ResponseEntity<>(httpHeaders, HttpStatus.CREATED);
-    }
-
-    /**
-     * Метод по обработке запроса на изменение музыкальной композиции
-     * 
-     * @param id           уникальный идентификатор композиции
-     * @param musicRequest запрос на добавление трека
-     * @param request      HTTP-запрос для получения заголовка
-     *                     <code>Authorization</code>
-     * @return JSON-представление измененной композиции
-     */
     @PutMapping("/{id}")
-    public ResponseEntity<Music> edit(
-            @PathVariable Long id,
-            @RequestBody MusicRequest musicRequest,
-            HttpServletRequest request) {
-        return new ResponseEntity<>(musicService.edit(id, musicRequest, request), HttpStatus.OK);
+    public ResponseEntity<?> update(
+        @PathVariable Long id,
+        @RequestParam(required = false) String name,
+        @RequestParam(required = false) String description,
+        @RequestParam(required = false) MultipartFile image,
+        @RequestParam(required = false) MultipartFile audio,
+        @RequestParam(name = "tags", required = false) List<String> tags
+    ) {
+        try {
+            return new ResponseEntity<>(musicService.editSong(id, name, description, image, audio, tags), HttpStatus.OK);
+        } catch (IOException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.BAD_GATEWAY.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.BAD_GATEWAY);
+        } catch (NotValidContentTypeException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.UNSUPPORTED_MEDIA_TYPE.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        }
     }
 
-    /**
-     * Метод по обработке запроса на удаление музыкальной композиции
-     * 
-     * @param id уникальный идентификатор композиции
-     * @return заголовок ответа со статусом <code>204 No Content</code>
-     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Music> delete(@PathVariable Long id) {
-        musicService.delete(id);
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        try {
+            return new ResponseEntity<>(musicService.deleteSong(id), HttpStatus.OK);
+        } catch (IOException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.BAD_GATEWAY.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.BAD_GATEWAY);
+        }
+    }
+
+    @DeleteMapping
+    public ResponseEntity<?> deleteAll() {
+        try {
+            musicService.deleteSongs();
+            return new ResponseEntity<>("All uploaded songs has been deleted!", HttpStatus.OK);
+        } catch (IOException e) {
+            return new ResponseEntity<>(
+                ExceptionResponse.builder()
+                    .code(HttpStatus.BAD_GATEWAY.name())
+                    .timestamp(LocalDateTime.now().toString())
+                    .message(e.getMessage())
+                    .build(), 
+                HttpStatus.BAD_GATEWAY);
+        }
+    }
+
+    @PostMapping("/{id}/likes")
+    public ResponseEntity<?> rate(@PathVariable Long id) {
+        musicService.rateMusic(id);
+        return new ResponseEntity<>("Assesment has been provided!", HttpStatus.OK);
+    }
+
+    @PostMapping("/find")
+    public ResponseEntity<?> readByTags(@RequestBody List<String> tagTypes) {
+        return new ResponseEntity<>(musicService.getSongsByTags(tagTypes), HttpStatus.OK);
+    }
+
+    @PostMapping("/subscriptions")
+    public ResponseEntity<?> readByPublishers() {
+        return new ResponseEntity<>(musicService.getSongsBySubscriptions(), HttpStatus.OK);
+    }
+
+    @PostMapping("{id}/save")
+    public ResponseEntity<?> save(@PathVariable Long id) {
+        return new ResponseEntity<>(musicService.saveSong(id), HttpStatus.OK);
     }
 
 }
