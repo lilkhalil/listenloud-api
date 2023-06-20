@@ -87,7 +87,8 @@ public class UserController {
 
     @DeleteMapping("/unsubscribe")
     public ResponseEntity<?> unsubscribeAllById(@RequestBody List<Long> ids) {
-        return new ResponseEntity<>(userService.unsubscribeAllById(ids), HttpStatus.OK);
+        userService.unsubscribeAllById(ids);
+        return new ResponseEntity<>("Unsubscribed!", HttpStatus.OK);
     }
 
     @DeleteMapping("/unsubscribe/{id}")
@@ -102,12 +103,11 @@ public class UserController {
 
     @PutMapping
     public ResponseEntity<?> updateUser(
-        @PathVariable Long id,
         @RequestParam(required = false) String username,
         @RequestParam(required = false) String biography,
         @RequestParam(required = false) MultipartFile image
     ) throws IOException, NotValidContentTypeException {
-        return new ResponseEntity<>(userService.updateUser(id, username, biography, image), HttpStatus.OK);
+        return new ResponseEntity<>(userService.updateUser(username, biography, image), HttpStatus.OK);
     }
     
 }

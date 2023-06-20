@@ -8,14 +8,13 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.Singular;
 
 @Entity
 @Builder
@@ -33,12 +32,10 @@ public class Tag {
     @Enumerated(EnumType.STRING)
     private TagType name;
 
-    @OneToMany(mappedBy = "tag")
-    @Singular
-    private Set<UserTag> users;
+    @ManyToMany(mappedBy = "savedTags")
+    private Set<User> users;
 
-    @OneToMany(mappedBy = "tag")
-    @Singular
-    private Set<MusicTag> songs;
+    @ManyToMany(mappedBy = "tags")
+    private Set<Music> songs;
 
 }

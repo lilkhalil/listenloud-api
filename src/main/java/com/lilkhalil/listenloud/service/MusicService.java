@@ -1,7 +1,6 @@
 package com.lilkhalil.listenloud.service;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -13,23 +12,12 @@ import com.lilkhalil.listenloud.dto.MusicDTO;
 import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
 import com.lilkhalil.listenloud.mapper.MusicMapper;
 import com.lilkhalil.listenloud.model.Music;
-import com.lilkhalil.listenloud.model.MusicTag;
-import com.lilkhalil.listenloud.model.MusicTagKey;
-import com.lilkhalil.listenloud.model.Save;
-import com.lilkhalil.listenloud.model.SaveKey;
 import com.lilkhalil.listenloud.model.Tag;
 import com.lilkhalil.listenloud.model.TagType;
 import com.lilkhalil.listenloud.model.User;
-import com.lilkhalil.listenloud.model.Like;
-import com.lilkhalil.listenloud.model.LikeKey;
 import com.lilkhalil.listenloud.repository.MusicRepository;
-import com.lilkhalil.listenloud.repository.MusicTagRepository;
-import com.lilkhalil.listenloud.repository.SaveRepository;
-import com.lilkhalil.listenloud.repository.SubscriptionRepository;
 import com.lilkhalil.listenloud.repository.TagRepository;
-import com.lilkhalil.listenloud.repository.LikeRepository;
-import com.lilkhalil.listenloud.repository.UserTagRepository;
-
+import com.lilkhalil.listenloud.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
@@ -47,17 +35,9 @@ public class MusicService {
      */
     private final MusicRepository musicRepository;
 
-    private final LikeRepository likeRepository;
-
-    private final MusicTagRepository musicTagRepository;
-
-    private final UserTagRepository userTagRepository;
-
-    private final SubscriptionRepository subscriptionRepository;
+    private final UserRepository userRepository;
 
     private final TagRepository tagRepository;
-
-    private final SaveRepository saveRepository;
 
     /** 
      * Экземпляр класса {@link com.lilkhalil.listenloud.service.StorageService}
@@ -82,7 +62,10 @@ public class MusicService {
                 .map(tag -> TagType.valueOf(tag)).toList()
         );
 
-        return musicTagRepository.findMusicByTags(tags).stream()
+        return musicRepository.findMusicByTags(
+            tags.stream().map(tag -> tag.getId()).toList()
+        )
+            .stream()
             .map(musicMapper::toDto)
             .toList();
     }
@@ -91,23 +74,28 @@ public class MusicService {
         
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        List<Tag> tags = userTagRepository.findByUser(user);
+        List<Tag> tags = tagRepository.findTagsByUser(user.getId());
 
         if (tags.isEmpty()) {
-            return Stream.concat(likeRepository.findAllOrderByLikesCount().stream(), musicRepository.findAll().stream())
+            return Stream.concat(musicRepository.findAllOrderByLikesCount().stream(), musicRepository.findAll().stream())
                 .distinct()
                 .map(musicMapper::toDto)
                 .toList();
         }
 
-        return musicTagRepository.findMusicByTags(tags).stream().map(musicMapper::toDto).toList();
+        return musicRepository.findMusicByTags(
+            tags.stream().map(tag -> tag.getId()).toList()
+        )
+            .stream()
+            .map(musicMapper::toDto)
+            .toList();
     }
 
     public List<MusicDTO> getSongsBySubscriptions() {
 
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        return subscriptionRepository.findSubscriptionsByUser(user)
+        return userRepository.findSubscriptionsByUser(user.getId())
             .stream()
             .flatMap(publisher -> musicRepository.findByAuthor(publisher).stream())
             .map(musicMapper::toDto)
@@ -126,7 +114,7 @@ public class MusicService {
 
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        return saveRepository.findByUser(user).stream().map(musicMapper::toDto).toList();
+        return musicRepository.findSavedMusicByUser(user.getId()).stream().map(musicMapper::toDto).toList();
     }
 
     /**
@@ -166,14 +154,10 @@ public class MusicService {
         musicRepository.save(music);
 
         if (tags != null) {
-
-            List<MusicTag> musicTags = tags
-                .stream()
-                .map(tag -> tagRepository.findByName(TagType.valueOf(tag)).orElse(null))
-                .map(tag -> new MusicTag(new MusicTagKey(music.getId(), tag.getId()), music, tag))
-                .toList(); 
-
-            musicTagRepository.saveAll(musicTags);
+            tags.forEach(tagType -> {
+                Tag tag = tagRepository.findByName(TagType.valueOf(tagType)).orElse(null);
+                tagRepository.saveTagByMusicAndTag(music.getId(), tag.getId());
+            });
         }
 
         return musicMapper.toDto(music);
@@ -185,9 +169,7 @@ public class MusicService {
 
         Music music = musicRepository.findById(id).orElse(null);
 
-        Save save = new Save(new SaveKey(user.getId(), music.getId()), user, music, LocalDateTime.now());
-
-        saveRepository.save(save);
+        musicRepository.saveSavedMusicByUser(music.getId(), user.getId());
 
         return musicMapper.toDto(music);
 
@@ -201,15 +183,10 @@ public class MusicService {
         music.setDescription(description == null ? music.getDescription() : description);
 
         if (tags != null) {
-            musicTagRepository.deleteByMusic(music);
-
-            List<MusicTag> musicTags = tags
-                .stream()
-                .map(tag -> tagRepository.findByName(TagType.valueOf(tag)).orElse(null))
-                .map(tag -> new MusicTag(new MusicTagKey(music.getId(), tag.getId()), music, tag))
-                .toList();
-
-            musicTagRepository.saveAll(musicTags);
+            tags.forEach(tagType -> {
+                Tag tag = tagRepository.findByName(TagType.valueOf(tagType)).orElse(null);
+                tagRepository.saveTagByMusicAndTag(music.getId(), tag.getId());
+            });
         }
 
         if (image == null && audio == null) {
@@ -252,11 +229,11 @@ public class MusicService {
         storageService.delete(music.getAudio());
         storageService.delete(music.getImage());
 
-        likeRepository.deleteByMusic(music);
+        musicRepository.deleteLikesByMusic(music.getId());
 
-        musicTagRepository.deleteByMusic(music);
+        tagRepository.deleteTagsByMusic(music.getId());
 
-        saveRepository.deleteByMusic(music);
+        musicRepository.deleteSavesByMusic(music.getId());
 
         musicRepository.deleteById(id);
 
@@ -272,9 +249,9 @@ public class MusicService {
         music.forEach(song -> {
             storageService.delete(song.getAudio());
             storageService.delete(song.getImage());
-            likeRepository.deleteByMusic(song);
-            musicTagRepository.deleteByMusic(song);
-            saveRepository.deleteByMusic(song);
+            musicRepository.deleteLikesByMusic(song.getId());
+            tagRepository.deleteTagsByMusic(song.getId());
+            musicRepository.deleteSavesByMusic(song.getId());
         });
 
         musicRepository.deleteAll(music);
@@ -287,7 +264,7 @@ public class MusicService {
 
         Music music = musicRepository.findById(id).orElse(null);
 
-        saveRepository.deleteByMusicAndUser(music, user);
+        musicRepository.deleteSaveByMusicAndUser(music.getId(), user.getId());
 
         return musicMapper.toDto(music);
     }
@@ -296,7 +273,7 @@ public class MusicService {
 
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        saveRepository.deleteByUser(user);
+        musicRepository.deleteSavesByUser(user.getId());
 
     }
 
@@ -306,10 +283,10 @@ public class MusicService {
 
         Music music = musicRepository.findById(id).orElse(null);
 
-        if (likeRepository.isLikedByUser(user, music)) 
-            likeRepository.deleteById(new LikeKey(user.getId(), music.getId()));
+        if (musicRepository.isLikedByUser(user.getId(), music.getId())) 
+            musicRepository.deleteLikeByUserAndMusic(user.getId(), music.getId());
         else 
-            likeRepository.save(new Like(new LikeKey(user.getId(), music.getId()), user, music));
+            musicRepository.saveLikeByUserAndMusic(user.getId(), music.getId());
 
     }
 

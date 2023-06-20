@@ -4,20 +4,19 @@ import java.util.Set;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.Singular;
 
 /**
  * Класс-сущность для сохранения и прослушивания музыки в приложении
@@ -68,20 +67,22 @@ public class Music {
      * Внешний ключ, ссылка на автора музыки
      * {@link com.lilkhalil.listenloud.model.User }
      */
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User author;
 
-    @OneToMany(mappedBy = "music")
-    @Singular
-    private Set<Save> userSaves;
+    @ManyToMany(mappedBy = "savedSongs")
+    private Set<User> saves;
 
-    @OneToMany(mappedBy = "music")
-    @Singular
-    private Set<Like> userLikes;
+    @ManyToMany(mappedBy = "likedSongs")
+    private Set<User> likes;
 
-    @OneToMany(mappedBy = "music")
-    @Singular
-    private Set<MusicTag> tags;
+    @ManyToMany
+    @JoinTable(
+        name = "music_tags",
+        joinColumns = @JoinColumn(name = "music_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags;
 
 }

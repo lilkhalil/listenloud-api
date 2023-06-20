@@ -1,12 +1,10 @@
 package com.lilkhalil.listenloud.mapper;
 
-import java.util.stream.Collectors;
-
 import org.springframework.stereotype.Component;
 
 import com.lilkhalil.listenloud.dto.UserDTO;
 import com.lilkhalil.listenloud.model.User;
-import com.lilkhalil.listenloud.repository.UserTagRepository;
+import com.lilkhalil.listenloud.repository.TagRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -16,7 +14,7 @@ public class UserMapper {
 
     private final TagMapper tagMapper;
 
-    private final UserTagRepository userTagRepository;
+    private final TagRepository tagRepository;
 
     public UserDTO toDto(User user) {
         Long id = user.getId();
@@ -30,7 +28,7 @@ public class UserMapper {
                 .biography(biography)
                 .imageUrl(imageUrl)
                 .roleName(roleName)
-                .tags(userTagRepository.findByUser(user).stream().map(tagMapper::toDto).collect(Collectors.toList()))
+                .tags(tagRepository.findTagsByUser(id).stream().map(tagMapper::toDto).toList())
                 .build();
     }
 

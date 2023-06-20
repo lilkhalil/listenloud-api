@@ -11,12 +11,8 @@ import com.lilkhalil.listenloud.mapper.TagMapper;
 import com.lilkhalil.listenloud.model.Tag;
 import com.lilkhalil.listenloud.model.TagType;
 import com.lilkhalil.listenloud.model.User;
-import com.lilkhalil.listenloud.model.UserTag;
-import com.lilkhalil.listenloud.model.UserTagKey;
 import com.lilkhalil.listenloud.repository.MusicRepository;
-import com.lilkhalil.listenloud.repository.MusicTagRepository;
 import com.lilkhalil.listenloud.repository.TagRepository;
-import com.lilkhalil.listenloud.repository.UserTagRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,63 +24,43 @@ public class TagService {
 
     private final MusicRepository musicRepository;
 
-    private final MusicTagRepository musicTagRepository;
-
     private final TagRepository tagRepository;
-
-    private final UserTagRepository userTagRepository;
 
     public List<TagDTO> getTags() {
         return tagRepository.findAll().stream().map(tagMapper::toDto).toList();
     }
 
     public List<TagDTO> getTagsFromSong(Long id) {
-        return musicTagRepository.findTagsByMusic(musicRepository.findById(id).orElse(null)).stream().map(tagMapper::toDto).toList();
+        return tagRepository.findTagsByMusic(musicRepository.findById(id).orElse(null).getId()).stream().map(tagMapper::toDto).toList();
     }
 
     public void deleteTagsFromMusic(Long id) {
-        musicTagRepository.deleteByMusic(musicRepository.findById(id).orElse(null));
+        tagRepository.deleteTagsByMusic(musicRepository.findById(id).orElse(null).getId());
     }
 
     public List<TagDTO> getTagsByUser() {
 
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         
-        return userTagRepository.findByUser(user).stream().map(tagMapper::toDto).toList();
+        return tagRepository.findTagsByUser(user.getId()).stream().map(tagMapper::toDto).toList();
     }
 
     public List<TagDTO> updateUserTags(List<String> tagTypes) {
 
-        List<UserTag> userTags = new ArrayList<>();
-
-        List<Tag> tagsDTO = new ArrayList<>();
+        List<Tag> tags = new ArrayList<>();
 
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        if (!userTagRepository.findByUser(user).isEmpty())
-            deleteUserTags(user);
+        if (!tagRepository.findTagsByUser(user.getId()).isEmpty())
+            tagRepository.deleteTagsByUser(user.getId());
 
         tagTypes.forEach((tagType) -> {
-            Tag temp = tagRepository.findByName(TagType.valueOf(tagType)).orElse(null);
-
-            tagsDTO.add(temp);
-            
-            userTags.add(
-                new UserTag(
-                    new UserTagKey(user.getId(), temp.getId()),
-                    user,
-                    temp
-                )
-            );
+            Tag tag = tagRepository.findByName(TagType.valueOf(tagType)).orElse(null);
+            tags.add(tag);
+            tagRepository.saveTagByUserAndTag(user.getId(), tag.getId());
         });
 
-        userTagRepository.saveAll(userTags);
-
-        return tagsDTO.stream().map(tagMapper::toDto).toList();
-    }
-
-    private void deleteUserTags(User user) {
-        userTagRepository.deleteTagsByUser(user);
+        return tags.stream().map(tagMapper::toDto).toList();
     }
 
 }

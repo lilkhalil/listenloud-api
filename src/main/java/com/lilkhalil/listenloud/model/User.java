@@ -16,6 +16,9 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -81,24 +84,40 @@ public class User implements UserDetails {
     @Singular
     private Set<Music> addedSongs;
 
-    @OneToMany(mappedBy = "user")
-    @Singular
-    private Set<UserTag> savedTags;
+    @ManyToMany
+    @JoinTable(
+        name = "user_tags",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> savedTags;
 
-    @OneToMany(mappedBy = "user")
-    private Set<Save> savedSongs;
+    @ManyToMany
+    @JoinTable(
+        name = "saves",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "music_id")
+    )
+    private Set<Music> savedSongs;
     
-    @OneToMany(mappedBy = "user")
-    @Singular
-    private Set<Like> likedSongs;
+    @ManyToMany
+    @JoinTable(
+        name = "likes",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "music_id")
+    )
+    private Set<Music> likedSongs;
 
-    @OneToMany(mappedBy = "subscriber")
-    @Singular
-    private Set<Subscription> subscribers;
+    @ManyToMany
+    @JoinTable(
+        name = "subscriptions",
+        joinColumns = @JoinColumn(name = "subscriber_id"),
+        inverseJoinColumns = @JoinColumn(name = "publisher_id")
+    )
+    private Set<User> publishers;
 
-    @OneToMany(mappedBy = "publisher")
-    @Singular
-    private Set<Subscription> publishers;
+    @ManyToMany(mappedBy = "publishers")
+    private Set<User> subscribers;
 
     @OneToMany(mappedBy = "sender", fetch = FetchType.EAGER)
     private Set<Message> sentMessages;

@@ -8,14 +8,10 @@ import org.springframework.web.multipart.MultipartFile;
 import com.lilkhalil.listenloud.dto.UserDTO;
 import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
 import com.lilkhalil.listenloud.mapper.UserMapper;
-import com.lilkhalil.listenloud.model.Subscription;
-import com.lilkhalil.listenloud.model.SubscriptionKey;
 import com.lilkhalil.listenloud.model.User;
-import com.lilkhalil.listenloud.repository.SubscriptionRepository;
 import com.lilkhalil.listenloud.repository.UserRepository;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import lombok.RequiredArgsConstructor;
@@ -28,8 +24,6 @@ public class UserService {
     
     private final UserRepository userRepository;
 
-    private final SubscriptionRepository subscriptionRepository;
-
     private final StorageService storageService;
 
     public UserDTO getUser() {
@@ -39,7 +33,7 @@ public class UserService {
         return userMapper.toDto(user);
     }
 
-    public UserDTO updateUser(Long id, String username, String biography, MultipartFile image) throws NotValidContentTypeException, IOException {
+    public UserDTO updateUser(String username, String biography, MultipartFile image) throws NotValidContentTypeException, IOException {
         
         User user = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         
@@ -61,14 +55,14 @@ public class UserService {
 
         User subscriber = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        return subscriptionRepository.findSubscriptionsByUser(subscriber).stream().map(userMapper::toDto).toList();
+        return userRepository.findSubscriptionsByUser(subscriber.getId()).stream().map(userMapper::toDto).toList();
     }
 
     public List<UserDTO> getSubscribers() {
 
         User publisher = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        return subscriptionRepository.findSubscribersByUser(publisher).stream().map(userMapper::toDto).toList();
+        return userRepository.findSubscribersByUser(publisher.getId()).stream().map(userMapper::toDto).toList();
     }
 
     public UserDTO subscribe(Long id) {
@@ -77,7 +71,7 @@ public class UserService {
 
         User publisher = userRepository.findById(id).orElseThrow(() -> new UsernameNotFoundException("User cannot be found!"));
 
-        subscriptionRepository.save(new Subscription(new SubscriptionKey(subscriber.getId(), publisher.getId()), subscriber, publisher, LocalDateTime.now()));
+        userRepository.saveSubscription(publisher.getId(), subscriber.getId());
 
         return userMapper.toDto(publisher);
     }
@@ -88,20 +82,17 @@ public class UserService {
 
         User publisher = userRepository.findById(id).orElseThrow(() -> new UsernameNotFoundException("User cannot be found!"));
 
-        subscriptionRepository.deleteBySubscriberAndPublisher(subscriber, publisher);
+        userRepository.deleteBySubscriberAndPublisher(subscriber.getId(), publisher.getId());
 
         return userMapper.toDto(publisher);
     }
     
-    public List<UserDTO> unsubscribeAllById(List<Long> ids) {
+    public void unsubscribeAllById(List<Long> ids) {
 
         User subscriber = (User)SecurityContextHolder.getContext().getAuthentication().getPrincipal(); 
 
-        List<User> publishers = userRepository.findAllById(ids);
+        userRepository.deleteBySubscriberAndPublisherIn(subscriber.getId(), ids);
 
-        subscriptionRepository.deleteBySubscriberAndPublisherIn(subscriber, publishers);
-
-        return publishers.stream().map(userMapper::toDto).toList();
     }
 
 }

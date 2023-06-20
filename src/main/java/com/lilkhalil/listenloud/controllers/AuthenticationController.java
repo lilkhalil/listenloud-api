@@ -1,14 +1,9 @@
 package com.lilkhalil.listenloud.controllers;
 
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
-
 import java.io.IOException;
 
-import org.springframework.hateoas.RepresentationModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,20 +36,6 @@ public class AuthenticationController {
      */
     private final LogoutService logoutService;
 
-    /**
-     * Метод определения доступных конечных точек в виде <a href=
-     * 'https://ru.wikipedia.org/wiki/Hypertext_Application_Language'>HAL</a>
-     * 
-     * @return представление конечной точки <code>/api/v1/auth</code>
-     */
-    @GetMapping
-    public RepresentationModel<?> authentication() {
-        RepresentationModel<?> authentication = new RepresentationModel<>();
-        authentication.add(linkTo(methodOn(AuthenticationController.class).register(null, null, null)).withRel("Регистрация"));
-        authentication
-                .add(linkTo(methodOn(AuthenticationController.class).authenticate(null, null)).withRel("Аутентификация"));
-        return authentication;
-    }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(

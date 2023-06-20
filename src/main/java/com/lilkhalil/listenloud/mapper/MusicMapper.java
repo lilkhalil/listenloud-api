@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 import com.lilkhalil.listenloud.dto.MusicDTO;
 import com.lilkhalil.listenloud.model.Music;
 import com.lilkhalil.listenloud.model.User;
-import com.lilkhalil.listenloud.repository.MusicTagRepository;
-import com.lilkhalil.listenloud.repository.LikeRepository;
+import com.lilkhalil.listenloud.repository.MusicRepository;
+import com.lilkhalil.listenloud.repository.TagRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,9 +20,9 @@ public class MusicMapper {
 
     private final UserMapper userMapper;
 
-    private final MusicTagRepository musicTagRepository;
+    private final MusicRepository musicRepository;
 
-    private final LikeRepository userLikesRepository;
+    private final TagRepository tagRepository;
 
     public MusicDTO toDto(Music music) {
 
@@ -33,11 +33,11 @@ public class MusicMapper {
                 .imageUrl(music.getImage())
                 .audioUrl(music.getAudio())
                 .author(userMapper.toDto(music.getAuthor()))
-                .tags(musicTagRepository.findTagsByMusic(music).stream().map(tagMapper::toDto)
+                .tags(tagRepository.findTagsByMusic(music.getId()).stream().map(tagMapper::toDto)
                         .collect(Collectors.toList()))
-                .isLiked(userLikesRepository.isLikedByUser(
-                        (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal(), music))
-                .likesCount(userLikesRepository.likesCount(music))
+                .isLiked(musicRepository.isLikedByUser(
+                        ((User)SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getId(), music.getId()))
+                .likesCount(musicRepository.findLikesCountByMusicId(music.getId()))
                 .build();
 
     }

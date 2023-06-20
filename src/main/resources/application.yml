@@ -1,13 +1,12 @@
 spring:
     datasource:
-        url: jdbc:postgresql://localhost:5432/listenloud
+        url: jdbc:postgresql://database:5432/listenloud
         username: postgres
         password: 1
         driver-class-name: org.postgresql.Driver
     jpa:
         hibernate:
-            # hbm2ddl.auto: true
-            ddl-auto: create-drop
+            ddl-auto: update
         database: postgresql
         database-platform: org.hibernate.dialect.PostgreSQLDialect
     servlet:
