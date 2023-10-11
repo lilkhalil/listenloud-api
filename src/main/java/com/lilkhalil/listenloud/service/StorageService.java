@@ -1,16 +1,21 @@
 package com.lilkhalil.listenloud.service;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.Bucket;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.cloud.StorageClient;
 import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
 
 import lombok.RequiredArgsConstructor;
@@ -19,34 +24,45 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class StorageService {
 
-    private final AmazonS3 s3Client;
-
-    @Value("${application.bucket.name}")
-    private String bucketName;
-
-    private final String BUCKET_URL = "https://listenloudstorage.storage.yandexcloud.net/";
+    private final FirebaseApp firebaseApp;
+    
+    @Value("${application.storage.url}")
+    private String URL;
 
     public String upload(MultipartFile file) throws IOException {
-        String fileKey = file.getContentType().substring(0, 6) + UUID.randomUUID().toString() + file.getOriginalFilename();
-        File fileObj = convertMultiPartFileToFile(file);
-        s3Client.putObject(new PutObjectRequest(bucketName, fileKey, fileObj));
-        fileObj.delete();
-        return BUCKET_URL + fileKey;
+        StorageClient storageClient = StorageClient.getInstance(firebaseApp);
+
+        Bucket bucket = storageClient.bucket();
+
+        String fileName = UUID.randomUUID().toString() + file.getOriginalFilename();
+
+        bucket.create(fileName, file.getInputStream(), file.getContentType());
+        
+        return String.format(URL, URLEncoder.encode(fileName, StandardCharsets.UTF_8));
+    }   
+
+    public ByteArrayResource download(String fileUrl) {
+        StorageClient storageClient = StorageClient.getInstance(firebaseApp);
+
+        Bucket bucket = storageClient.bucket();
+
+        String fileName = this.extractFileName(fileUrl);
+
+        Blob blob = bucket.get(fileName);
+
+        return new ByteArrayResource(blob.getContent());
     }
 
     public void delete(String fileUrl) {
-        String fileKey = fileUrl.split(BUCKET_URL)[1];
-        s3Client.deleteObject(bucketName, fileKey);
-    }
+        StorageClient storageClient = StorageClient.getInstance(firebaseApp);
 
-    private File convertMultiPartFileToFile(MultipartFile file) {
-        File convertedFile = new File(file.getOriginalFilename());
-        try (FileOutputStream fos = new FileOutputStream(convertedFile)) {
-            fos.write(file.getBytes());
-        } catch (IOException e) {
-            System.out.println("Error: Converting multipartFile to file has been failed");
-        }
-        return convertedFile;
+        Bucket bucket = storageClient.bucket();
+
+        String fileName = this.extractFileName(fileUrl);
+
+        Blob blob = bucket.get(fileName);
+
+        blob.delete();
     }
 
     public void isValidMediaType(MultipartFile file) throws NotValidContentTypeException {
@@ -59,6 +75,17 @@ public class StorageService {
                 throw new NotValidContentTypeException("Error: File format compatible with image: JPEG, PNG");
         }
         else throw new NotValidContentTypeException("Error: Invalid file format is given!");
+    }
+
+    private String extractFileName(String url) {
+
+        Pattern pattern = Pattern.compile("https://firebasestorage\\.googleapis\\.com/v0/b/listenloud-storage\\.appspot\\.com/o/(.*?)\\?alt=media");
+    
+        Matcher matcher = pattern.matcher(url);
+
+        if (matcher.find()) return matcher.group(1);
+
+        else return null;      
     }
 
 }

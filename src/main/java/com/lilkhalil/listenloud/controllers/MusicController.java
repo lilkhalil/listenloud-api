@@ -140,7 +140,8 @@ public class MusicController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         try {
-            return new ResponseEntity<>(musicService.deleteSong(id), HttpStatus.OK);
+            musicService.deleteSong(id);
+            return new ResponseEntity<>("Success: Tags has been removed!", HttpStatus.NO_CONTENT);
         } catch (IOException e) {
             return new ResponseEntity<>(
                 ExceptionResponse.builder()
