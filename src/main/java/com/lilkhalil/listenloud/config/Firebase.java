@@ -16,7 +16,7 @@ public class Firebase {
     @Bean
     public FirebaseApp initializeStorage() throws IOException {
 
-        FileInputStream serviceAccount = new FileInputStream("C:/Users/aidar/listenloud-api/src/main/resources/firebase.json");
+        FileInputStream serviceAccount = new FileInputStream("src/main/resources/firebase.json");
 
         FirebaseOptions options = FirebaseOptions.builder()
             .setCredentials(GoogleCredentials.fromStream(serviceAccount))
