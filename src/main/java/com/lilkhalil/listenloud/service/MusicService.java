@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -51,8 +52,8 @@ public class MusicService {
      * @return список экземпляров класса
      *         {@link com.lilkhalil.listenloud.model.Music}
      */
-    public List<MusicDTO> getSongs() {
-        return musicRepository.findAll().stream().map(musicMapper::toDto).toList();
+    public List<MusicDTO> getSongs(Integer page) {
+        return musicRepository.findAll(PageRequest.of(page, 10)).stream().map(musicMapper::toDto).toList();
     }
 
     public List<MusicDTO> getSongsByTags(List<String> tagTypes) {

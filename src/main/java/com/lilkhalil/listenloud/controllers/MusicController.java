@@ -80,8 +80,8 @@ public class MusicController {
      *         {@link com.lilkhalil.listenloud.model.Music}
      */
     @GetMapping
-    public ResponseEntity<?> readSongs() {
-        return new ResponseEntity<>(musicService.getSongs(), HttpStatus.OK);
+    public ResponseEntity<?> readSongs(@RequestParam Integer page) {
+        return new ResponseEntity<>(musicService.getSongs(page), HttpStatus.OK);
     }
 
     /**

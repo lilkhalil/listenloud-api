@@ -1,16 +1,10 @@
 package com.lilkhalil.listenloud.controllers;
 
-import java.io.IOException;
-
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
-
-import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
 import com.lilkhalil.listenloud.service.AuthenticationService;
 import com.lilkhalil.listenloud.service.LogoutService;
 
@@ -40,17 +34,10 @@ public class AuthenticationController {
     @PostMapping("/register")
     public ResponseEntity<?> register(
         @RequestParam String username,
-        @RequestParam String password,
-        @RequestParam(required = false) MultipartFile image
+        @RequestParam String password
     ) 
     {
-        try {
-            return ResponseEntity.ok(authenticationService.register(username, password, image));
-        } catch (IOException e) {
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_GATEWAY);
-        } catch (NotValidContentTypeException e) {
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.UNSUPPORTED_MEDIA_TYPE);
-        }
+        return ResponseEntity.ok(authenticationService.register(username, password));
     }
 
     @PostMapping("/authenticate")

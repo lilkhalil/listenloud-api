@@ -7,10 +7,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lilkhalil.listenloud.exception.NotValidContentTypeException;
 import com.lilkhalil.listenloud.exception.UserAlreadyExistsException;
 import com.lilkhalil.listenloud.model.AuthenticationResponse;
 import com.lilkhalil.listenloud.model.Role;
@@ -54,8 +51,6 @@ public class AuthenticationService {
      */
     private final JwtService jwtService;
 
-    private final StorageService storageService;
-
     /**
      * Экземпляр класса
      * {@link org.springframework.security.authentication.AuthenticationManager}
@@ -72,13 +67,11 @@ public class AuthenticationService {
      *         {@link com.lilkhalil.listenloud.model.AuthenticationResponse} на
      *         регистрацию пользователя
      */
-    public AuthenticationResponse register(
+    public String register(
         String username,
-        String password,
-        MultipartFile image
-    ) throws NotValidContentTypeException, IOException
+        String password
+    )
     {
-
         if (repository.findByUsername(username).orElse(null) != null)
             throw new UserAlreadyExistsException("User already exists! Please choose a different username!");
 
@@ -87,22 +80,10 @@ public class AuthenticationService {
                 .password(passwordEncoder.encode(password))
                 .role(Role.USER)
                 .build();
-
-        if (image == null)
-            user.setImage("https://listenloudstorage.storage.yandexcloud.net/NOT_FOUND.jpg");
-        else {
-            storageService.isValidMediaType(image);
-            user.setImage(storageService.upload(image));
-        }
         
-        var savedUser = repository.save(user);
-        var jwtToken = jwtService.generateToken(user);
-        var refreshToken = jwtService.generateRefreshToken(user);
-        saveUserToken(savedUser, jwtToken);
-        return AuthenticationResponse.builder()
-                .accessToken(jwtToken)
-                .refreshToken(refreshToken)
-                .build();
+        repository.save(user);
+        
+        return "Successfully created user!";
     }
 
     /**
